@@ -1,0 +1,5 @@
+services:
+  ollama:
+    build:
+      context: .
+      dockerfile: Dockerfile
