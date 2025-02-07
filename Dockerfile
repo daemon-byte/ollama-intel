@@ -2,8 +2,26 @@ FROM ubuntu:24.04
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 ENV PATH /opt/conda/bin:$PATH
 
+ENV SYCL_DEVICE_FILTER=level_zero
+ENV SYCL_PROGRAM_COMPILE_OPTIONS="-ze-opt-large-register-file"
+ENV ENABLE_L0_PROFILING=1
+
 RUN apt update --fix-missing && \
     apt install -y wget curl cmake python3-pip python3-dev gnupg bzip2 ca-certificates git
+
+
+RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
+# Install Intel oneAPI base toolkit and required packages
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update  \
+     && apt install -y intel-basekit intel-mkl intel-opencl-icd intel-mkl intel-oneapi-compiler-dpcpp-cpp intel-oneapi-dev-utilities \
+     && apt clean \
+     && rm -rf /var/lib/apt/lists/*
+
+RUN ln -s /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so.8 /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so.7
+RUN ln -s /opt/intel/oneapi/mkl/2025.0/lib/libmkl_sycl_blas.so.5 /opt/intel/oneapi/mkl/2025.0/lib/libmkl_sycl_blas.so.4
+RUN ldconfig
 
 SHELL ["/bin/bash", "-c"]
 
@@ -17,19 +35,6 @@ RUN echo "conda activate llm-cpp" >> ~/.bashrc
 RUN pip install --no-cache-dir --root-user-action=ignore --pre --upgrade ipex-llm[cpp] && \
     init-ollama
 
-RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
-RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
-
-# Install Intel oneAPI base toolkit and required packages
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update  \
-     && apt install -y intel-basekit intel-mkl intel-opencl-icd intel-mkl \
-     && apt clean \
-     && rm -rf /var/lib/apt/lists/*
-
-RUN ln -s /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so.8 /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so.7
-RUN ln -s /opt/intel/oneapi/mkl/2025.0/lib/libmkl_sycl_blas.so.5 /opt/intel/oneapi/mkl/2025.0/lib/libmkl_sycl_blas.so.4
-RUN ldconfig
 # Set environment variables
 ENV OLLAMA_NUM_GPU=999
 ENV no_proxy=localhost,127.0.0.1
